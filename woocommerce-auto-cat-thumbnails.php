@@ -3,7 +3,7 @@
 Plugin Name: WooCommerce Auto Category Thumbnails
 Plugin URI: http://codebyshellbot.com/wordpress-plugins/woocommerce-auto-category-thumbnails/
 Description: Automatically display a relevant product image if category thumbnails are not set.
-Version: 1.0
+Version: 1.1
 Author: Shellbot
 Author URI: http://codebyshellbot.com
 License: GPLv2 or later
@@ -28,21 +28,37 @@ Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
 
 class SB_WC_Auto_Category_Thumbnails {
 
+  /**
+   * Add our various hooks and filters as soon as possible.
+   *
+   * @since 1.0
+   */
     public function __construct() {
-        add_action( 'init', array( $this, 'load_settings' ) );
         add_action( 'plugins_loaded', array( $this, 'remove_default' ) );
         add_action( 'woocommerce_before_subcategory_title', array( $this, 'auto_category_thumbnail' ) );
-        
-        add_action( 'admin_init', array( $this, 'register_settings' ) );
-        add_action( 'admin_menu', array( $this, 'add_settings_page' ) );
+        add_action( 'woocommerce_settings_tabs_sbo_wcact', array( $this, 'settings_tab' ) );
+        add_action( 'woocommerce_update_options_sbo_wcact', array( $this, 'update_settings' ) );
+
+        add_filter( 'woocommerce_settings_tabs_array', array( $this, 'add_settings_tab' ), 50 );
     }
 
+  /**
+   * Remove WooCommerce default action to replace with our own.
+   *
+   * @since 1.0
+   */
     public function remove_default() {
         remove_action( 'woocommerce_before_subcategory_title', 'woocommerce_subcategory_thumbnail' );
     }
 
+    /**
+     * Replace category placeholders with product images.
+     *
+     * @param object $cat
+     * @since 1.0
+     */
     public function auto_category_thumbnail( $cat ) {
-        
+
         //If a thumbnail is explicitly set for this category, we don't need to do anything else
         if ( get_woocommerce_term_meta( $cat->term_id, 'thumbnail_id', true ) ) {
                 woocommerce_subcategory_thumbnail( $cat );
@@ -69,13 +85,15 @@ class SB_WC_Auto_Category_Thumbnails {
                 )
             )
         );
-        
+
+        $wcact_settings = get_option( 'wcact_settings' );
+
         //Random or latest image?
-        $query_args['orderby'] = $this->settings['orderby'];
+        $query_args['orderby'] = $wcact_settings['orderby'];
 
         //Query DB
         $product = get_posts( $query_args );
-        
+
         //If matching product found, check for a thumbnail, otherwise fall back
         if( $product && has_post_thumbnail( $product[0]->ID ) ) {
             echo get_the_post_thumbnail( $product[0]->ID, 'shop_thumbnail' );
@@ -84,45 +102,70 @@ class SB_WC_Auto_Category_Thumbnails {
             return;
         }
     }
-    
-    function add_settings_page() {
-	add_options_page( 'WC Auto Cat Thumbs', 'WC Auto Cat Thumbs', 'manage_options', 'wcact_settings', array( $this, 'show_settings_page' ) );
+
+    /**
+     * Add plugin settings tab to WooCommerce settings page.
+     *
+     * @param array $settings_tab
+     * @return array $settings_tab
+     * @since 1.1
+     */
+    function add_settings_tab( $settings_tabs ) {
+        $settings_tabs['sbo_wcact'] = __( 'Auto Category Thumbnails', 'wc-auto-category-thumbnails' );
+        return $settings_tabs;
     }
 
-    function show_settings_page() {
-        include( 'wcact-settings-page.php' );
-    }
-    
-    function register_settings() {
-        register_setting( 'wcact_settings', 'wcact_settings' );
-        
-        add_settings_section( 'wcact_global', 'Settings', '', 'wcact_settings' );
-        add_settings_field( 'orderby', 'Which product image should be displayed for each category?', array( &$this, 'field_orderby' ), 'wcact_settings', 'wcact_global' );
-    }
-    
-    function load_settings() {
-        //Set defaults
-        $defaults = array(
-            'orderby' => 'rand',
+    /**
+     * Define fields for plugin settings tab.
+     *
+     * @since 1.1
+     */
+    function get_settings() {
+
+        $settings = array(
+            'section_title' => array(
+                'name'     => __( 'WC Auto Category Thumbnails', 'woocommerce-settings-tab-demo' ),
+                'type'     => 'title',
+                'desc'     => '',
+                'id'       => 'wcact_settings[title]',
+            ),
+            'orderby' => array(
+                'name' => __( 'Image to use', 'woocommerce-settings-tab-demo' ),
+                'type' => 'radio',
+                'desc' => __( 'Which product image should be displayed for each category?', 'woocommerce-settings-tab-demo' ),
+                'std' => 'rand',
+                'id'   => 'wcact_settings[orderby]',
+                'options' => array(
+                    'rand' => 'Random',
+                    'date' => 'Latest',
+                ),
+            ),
+            'section_end' => array(
+                 'type' => 'sectionend',
+                 'id' => 'wcact_settings[sectionend]',
+            )
         );
-        
-        //Get existing settings, if any
-        $this->settings = (array) get_option( 'wcact_settings' );
+        return apply_filters( 'wcact_settings', $settings );
+    }
 
-        // Merge with defaults
-        $this->settings = array_merge( $defaults, $this->settings );
+    /**
+     * Add fields defined in get_settings() to plugin settings tab.
+     *
+     * @since 1.1
+     */
+    function settings_tab() {
+        woocommerce_admin_fields( $this->get_settings() );
     }
-    
-    function field_orderby() {
-        $value = esc_attr( $this->settings['orderby'] );
-        ?>
-            <label for="orderbyrand">Random</label>
-            <input type="radio" name="wcact_settings[orderby]" id="orderbyrand" value="rand" <?php echo ($value == 'rand' ? 'checked="checked"' : ''); ?>>
-            <label for="orderbydate">Latest</label>
-            <input type="radio" name="wcact_settings[orderby]" id="orderbydate" value="date" <?php echo ($value == 'date' ? 'checked="checked"' : ''); ?>>
-        <?php
+
+    /**
+     * Save settings from plugin tab.
+     *
+     * @since 1.1
+     */
+    function update_settings() {
+        woocommerce_update_options( $this->get_settings() );
     }
-    
+
 }
 
 new SB_WC_Auto_Category_Thumbnails();
