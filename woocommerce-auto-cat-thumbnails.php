@@ -96,7 +96,7 @@ class SB_WC_Auto_Category_Thumbnails {
 
         //If matching product found, check for a thumbnail, otherwise fall back
         if( $product && has_post_thumbnail( $product[0]->ID ) ) {
-            echo get_the_post_thumbnail( $product[0]->ID, 'shop_thumbnail' );
+            echo get_the_post_thumbnail( $product[0]->ID, $wcact_settings['imgsize'] );
         } else {
             woocommerce_subcategory_thumbnail( $cat );
             return;
@@ -138,6 +138,19 @@ class SB_WC_Auto_Category_Thumbnails {
                 'options' => array(
                     'rand' => 'Random',
                     'date' => 'Latest',
+                ),
+            ),
+            'imagesize' =>array(
+                'name'=> __( 'Image Size', 'woocommerce-settings-tab-demo' ),
+                'type'=> 'radio',
+                'desc' => __( 'Which image size should be displayed for each category?', 'woocommerce-settings-tab-demo' ),
+                'std' => 'medium',
+                'id'   => 'wcact_settings[imgsize]',
+                'options' => array(
+                    'thumbnail' => 'Thumbnail (150x150 max)',
+                    'medium' => 'Medium (300x300 max)',
+                    'large' => 'Large (600x600 max)',
+                    'full' => 'Original Resolution',
                 ),
             ),
             'section_end' => array(
